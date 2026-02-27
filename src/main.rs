@@ -7,7 +7,6 @@ use email_manager::services::gmail::GmailService;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::info;
-use tracing_subscriber;
 
 #[actix_web::main]
 async fn main() -> Result<()> {

@@ -219,8 +219,10 @@ impl GmailService {
     }
 
     pub async fn mark_as_read(&self, email_id: &str) -> Result<(), ApiError> {
-        let mut modify_request = ModifyMessageRequest::default();
-        modify_request.remove_label_ids = Some(vec!["UNREAD".to_string()]);
+        let modify_request = ModifyMessageRequest {
+            remove_label_ids: Some(vec!["UNREAD".to_string()]),
+            ..Default::default()
+        };
 
         self.hub
             .users()
@@ -233,8 +235,10 @@ impl GmailService {
     }
 
     pub async fn mark_as_unread(&self, email_id: &str) -> Result<(), ApiError> {
-        let mut modify_request = ModifyMessageRequest::default();
-        modify_request.add_label_ids = Some(vec!["UNREAD".to_string()]);
+        let modify_request = ModifyMessageRequest {
+            add_label_ids: Some(vec!["UNREAD".to_string()]),
+            ..Default::default()
+        };
 
         self.hub
             .users()
