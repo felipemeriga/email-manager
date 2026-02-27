@@ -16,6 +16,8 @@ target/
 config/service-account.json
 config/*.key
 config/*.pem
+key.json
+*.key.json
 
 # OS
 .DS_Store

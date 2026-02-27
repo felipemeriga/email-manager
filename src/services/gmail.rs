@@ -34,7 +34,18 @@ impl GmailService {
 
         let client = hyper::Client::builder().build(https);
 
-        let auth = ServiceAccountAuthenticator::builder(secret)
+        // Get the user email from environment variable or use a default
+        let user_email = std::env::var("GMAIL_USER_EMAIL")
+            .unwrap_or_else(|_| "me".to_string());
+
+        let mut auth_builder = ServiceAccountAuthenticator::builder(secret);
+
+        // If a specific user email is provided, impersonate that user
+        if user_email != "me" {
+            auth_builder = auth_builder.subject(&user_email);
+        }
+
+        let auth = auth_builder
             .build()
             .await
             .map_err(|e| {

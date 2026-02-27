@@ -18,7 +18,17 @@ pub async fn get_recent_emails(
         .unwrap_or(10);
 
     let service = gmail_service.lock().await;
-    let emails = service.get_recent_emails(limit).await?;
+
+    // Add logging for debugging
+    tracing::info!("Fetching {} recent emails", limit);
+
+    let emails = match service.get_recent_emails(limit).await {
+        Ok(emails) => emails,
+        Err(e) => {
+            tracing::error!("Failed to get recent emails: {:?}", e);
+            return Err(e);
+        }
+    };
 
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "emails": emails,

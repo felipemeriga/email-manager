@@ -31,16 +31,31 @@ async fn main() -> Result<()> {
         "Configuration loaded: {}:{}",
         settings.server.host, settings.server.port
     );
+    info!(
+        "Using service account: {}",
+        settings.gmail.service_account_path
+    );
+
+    // Check if user email is configured
+    if let Ok(user_email) = std::env::var("GMAIL_USER_EMAIL") {
+        info!("Will impersonate user: {}", user_email);
+    } else {
+        info!("No GMAIL_USER_EMAIL set - using default 'me' (requires personal auth)");
+    }
 
     // Initialize Gmail service
-    let gmail_service = Arc::new(Mutex::new(
-        GmailService::new(&settings.gmail.service_account_path).await?,
-    ));
+    let gmail_service = match GmailService::new(&settings.gmail.service_account_path).await {
+        Ok(service) => Arc::new(Mutex::new(service)),
+        Err(e) => {
+            tracing::error!("Failed to initialize Gmail service: {}", e);
+            return Err(anyhow::anyhow!("Gmail service initialization failed: {}", e));
+        }
+    };
 
     let server_host = settings.server.host.clone();
     let server_port = settings.server.port;
 
-    info!("Gmail service initialized");
+    info!("Gmail service initialized successfully");
 
     // Create and run HTTP server
     HttpServer::new(move || {
