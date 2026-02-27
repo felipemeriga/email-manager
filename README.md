@@ -1,5 +1,8 @@
 # Gmail Manager API
 
+[![Rust CI](https://github.com/felipemeriga/email-manager/actions/workflows/rust.yml/badge.svg)](https://github.com/felipemeriga/email-manager/actions/workflows/rust.yml)
+[![Docker Hub](https://img.shields.io/docker/v/felipemeriga1/email-manager?label=docker&sort=semver)](https://hub.docker.com/r/felipemeriga1/email-manager)
+
 A Rust-based REST API for managing Gmail emails with intelligent importance scoring.
 
 ## Features
@@ -85,12 +88,41 @@ cargo test test_name
 ## Docker
 
 ```bash
-# Build image
+# Pull from Docker Hub
+docker pull felipemeriga1/email-manager:latest
+
+# Build locally
 docker build -t gmail-manager .
 
 # Run container
-docker run -p 8080:8080 -v $(pwd)/config:/app/config gmail-manager
+docker run -p 8080:8080 -v $(pwd)/config:/app/config felipemeriga1/email-manager:latest
 ```
+
+## CI/CD
+
+This project uses GitHub Actions for continuous integration and deployment to Docker Hub.
+
+### Required GitHub Secrets
+
+To enable automatic Docker Hub deployment, configure these secrets in your GitHub repository settings:
+
+1. **`DOCKER_USERNAME`** - Your Docker Hub username (e.g., `felipemeriga1`)
+2. **`DOCKER_PASSWORD`** - Your Docker Hub password or access token
+   - To create an access token: Docker Hub → Account Settings → Security → Access Tokens
+
+### CI Pipeline
+
+The CI pipeline automatically:
+1. **Format Check** - Ensures code is properly formatted
+2. **Clippy Lint** - Runs Rust linter for code quality
+3. **Tests** - Runs all unit and integration tests
+4. **Build** - Creates release binary
+5. **Docker** - Builds and pushes multi-platform images (amd64/arm64)
+6. **Security Audit** - Checks for known vulnerabilities
+
+Docker images are tagged as:
+- `latest` - Latest main branch build
+- `main-{sha}` - Specific commit on main branch
 
 ## License
 
