@@ -49,20 +49,29 @@ cargo run
 
 ## API Endpoints
 
+A complete Postman collection is available in [`postman_collection.json`](./postman_collection.json) for easy API testing.
+
 ### Email Operations
 
 - `GET /emails/recent?limit=50` - Get recent emails
 - `GET /emails/today?min_score=2` - Get today's emails
-- `GET /emails/date/{YYYY-MM-DD}?min_score=2` - Get emails by date
-- `GET /emails/search?query=from:john&min_score=1` - Search emails
-- `POST /emails/{id}/mark-read` - Mark as read
-- `POST /emails/{id}/mark-unread` - Mark as unread
+- `GET /emails/by-date/{YYYY-MM-DD}?min_score=2` - Get emails by date
+- `POST /emails/search` - Search emails with query
+- `POST /emails/{id}/read` - Mark as read
+- `POST /emails/{id}/unread` - Mark as unread
 - `DELETE /emails/{id}` - Delete single email
-- `DELETE /emails/bulk` - Delete multiple emails
+- `POST /emails/bulk-delete` - Delete multiple emails
 
 ### Health Check
 
 - `GET /health` - Service health status
+
+### Testing with Postman
+
+1. Import `postman_collection.json` into Postman
+2. Import `postman_environment.json` for environment variables
+3. Set your `base_url` (default: `http://localhost:8080`)
+4. Start testing the endpoints!
 
 ## Importance Scoring
 
