@@ -1,5 +1,5 @@
-use email_manager::models::{EmailSummary, ImportanceScore};
 use chrono::Utc;
+use email_manager::models::{EmailSummary, ImportanceScore};
 
 #[test]
 fn test_email_summary_creation() {

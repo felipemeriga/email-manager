@@ -37,12 +37,14 @@ impl ResponseError for ApiError {
                     "message": self.to_string()
                 }
             })),
-            ApiError::AuthenticationError(_) => HttpResponse::Unauthorized().json(serde_json::json!({
-                "error": {
-                    "code": "AUTHENTICATION_ERROR",
-                    "message": self.to_string()
-                }
-            })),
+            ApiError::AuthenticationError(_) => {
+                HttpResponse::Unauthorized().json(serde_json::json!({
+                    "error": {
+                        "code": "AUTHENTICATION_ERROR",
+                        "message": self.to_string()
+                    }
+                }))
+            }
             ApiError::RateLimitError => HttpResponse::TooManyRequests().json(serde_json::json!({
                 "error": {
                     "code": "RATE_LIMIT_ERROR",

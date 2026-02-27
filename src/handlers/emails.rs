@@ -30,7 +30,8 @@ pub async fn get_today_emails(
     gmail_service: web::Data<SharedGmailService>,
 ) -> Result<HttpResponse, ApiError> {
     let today = Utc::now().date_naive();
-    let today_utc = today.and_hms_opt(0, 0, 0)
+    let today_utc = today
+        .and_hms_opt(0, 0, 0)
         .ok_or(ApiError::ValidationError("Invalid date".to_string()))?
         .and_utc();
 

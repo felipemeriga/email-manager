@@ -21,7 +21,9 @@ impl GmailService {
     pub async fn new(service_account_path: &str) -> Result<Self, ApiError> {
         let secret = read_service_account_key(service_account_path)
             .await
-            .map_err(|e| ApiError::AuthenticationError(format!("Failed to read service account: {}", e)))?;
+            .map_err(|e| {
+                ApiError::AuthenticationError(format!("Failed to read service account: {}", e))
+            })?;
 
         let https = hyper_rustls::HttpsConnectorBuilder::new()
             .with_native_roots()
@@ -35,7 +37,9 @@ impl GmailService {
         let auth = ServiceAccountAuthenticator::builder(secret)
             .build()
             .await
-            .map_err(|e| ApiError::AuthenticationError(format!("Failed to create authenticator: {}", e)))?;
+            .map_err(|e| {
+                ApiError::AuthenticationError(format!("Failed to create authenticator: {}", e))
+            })?;
 
         let hub = Gmail::new(client, auth);
         let scorer = Arc::new(Mutex::new(EmailScorer::new()));
@@ -44,7 +48,8 @@ impl GmailService {
     }
 
     pub async fn get_recent_emails(&self, limit: u32) -> Result<Vec<EmailSummary>, ApiError> {
-        let messages = self.hub
+        let messages = self
+            .hub
             .users()
             .messages_list("me")
             .max_results(limit)
@@ -68,11 +73,15 @@ impl GmailService {
         Ok(emails)
     }
 
-    pub async fn get_emails_by_date(&self, date: DateTime<Utc>) -> Result<Vec<EmailSummary>, ApiError> {
+    pub async fn get_emails_by_date(
+        &self,
+        date: DateTime<Utc>,
+    ) -> Result<Vec<EmailSummary>, ApiError> {
         let date_str = date.format("%Y/%m/%d").to_string();
         let query = format!("after:{}", date_str);
 
-        let messages = self.hub
+        let messages = self
+            .hub
             .users()
             .messages_list("me")
             .q(&query)
@@ -97,7 +106,8 @@ impl GmailService {
     }
 
     pub async fn search_emails(&self, query: &str) -> Result<Vec<EmailSummary>, ApiError> {
-        let messages = self.hub
+        let messages = self
+            .hub
             .users()
             .messages_list("me")
             .q(query)
@@ -122,7 +132,8 @@ impl GmailService {
     }
 
     async fn get_email_by_id(&self, message_id: &str) -> Result<EmailSummary, ApiError> {
-        let message = self.hub
+        let message = self
+            .hub
             .users()
             .messages_get("me", message_id)
             .format("full")
@@ -134,7 +145,10 @@ impl GmailService {
         self.parse_message(message).await
     }
 
-    async fn parse_message(&self, message: google_gmail1::api::Message) -> Result<EmailSummary, ApiError> {
+    async fn parse_message(
+        &self,
+        message: google_gmail1::api::Message,
+    ) -> Result<EmailSummary, ApiError> {
         let message_id = message.id.clone().unwrap_or_default();
         let snippet = message.snippet.clone().unwrap_or_default();
         let label_ids = message.label_ids.clone().unwrap_or_default();
@@ -155,7 +169,8 @@ impl GmailService {
                             // Parse "Name <email@domain.com>" format
                             if let Some(email_start) = from_value.find('<') {
                                 if let Some(email_end) = from_value.find('>') {
-                                    sender_email = from_value[email_start + 1..email_end].to_string();
+                                    sender_email =
+                                        from_value[email_start + 1..email_end].to_string();
                                     sender = from_value[..email_start].trim().to_string();
                                     if sender.is_empty() {
                                         sender = sender_email.clone();
