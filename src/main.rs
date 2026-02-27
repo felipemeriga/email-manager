@@ -11,7 +11,7 @@ use tracing::info;
 #[actix_web::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    dotenv::dotenv().ok();
+    dotenvy::dotenv().ok();
 
     info!("Starting Gmail Manager API");
 

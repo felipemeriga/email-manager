@@ -1,0 +1,11 @@
+[advisories]
+# google-gmail1 depends on old url which depends on vulnerable idna
+# Cannot be fixed until google-gmail1 updates its dependencies
+# This is a transitive dependency we cannot control
+ignore = [
+    "RUSTSEC-2024-0421", # idna vulnerability via url 1.7.2 in google-gmail1
+]
+
+# Acknowledged warnings for unmaintained dependencies
+# These are dependencies of google-gmail1 which is the only Gmail API client available
+informational_warnings = ["unmaintained"]
