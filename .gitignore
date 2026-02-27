@@ -33,5 +33,11 @@ DEVELOPMENT_GUIDELINES.md
 PROJECT_TEMPLATE.md
 DOCKER_TEMPLATE.md
 
+# Planning documents - don't commit
+docs/plans/
+*.plan.md
+*-design.md
+*-implementation.md
+
 # NPM
 .npmrc
