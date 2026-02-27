@@ -1,0 +1,38 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Secrets - NEVER commit these
+config/service-account.json
+config/*.key
+config/*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test coverage
+tarpaulin-report.html
+cobertura.xml
+
+# Development guidelines - don't commit
+DEVELOPMENT_GUIDELINES.md
+PROJECT_TEMPLATE.md
+DOCKER_TEMPLATE.md
+
+# NPM
+.npmrc
