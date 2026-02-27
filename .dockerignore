@@ -1,0 +1,6 @@
+target/
+.git/
+.env
+config/service-account.json
+*.log
+.DS_Store
