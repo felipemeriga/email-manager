@@ -69,9 +69,8 @@ A complete Postman collection is available in [`postman_collection.json`](./post
 ### Testing with Postman
 
 1. Import `postman_collection.json` into Postman
-2. Import `postman_environment.json` for environment variables
-3. Set your `base_url` (default: `http://localhost:8080`)
-4. Start testing the endpoints!
+2. Update the `base_url` variable if needed (default: `http://localhost:8080`)
+3. Start testing the endpoints!
 
 ## Importance Scoring
 
