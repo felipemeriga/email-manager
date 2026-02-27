@@ -1,0 +1,281 @@
+{
+	"info": {
+		"_postman_id": "gmail-manager-api-v1",
+		"name": "Gmail Manager API",
+		"description": "REST API for managing Gmail emails with intelligent importance scoring",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Check if the API service is healthy and running"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Emails - Read Operations",
+			"item": [
+				{
+					"name": "Get Recent Emails",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/emails/recent?limit=50",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"emails",
+								"recent"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50",
+									"description": "Maximum number of emails to retrieve (default: 50)"
+								}
+							]
+						},
+						"description": "Retrieve the most recent emails from your Gmail inbox"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Today's Emails",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/emails/today?min_score=2",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"emails",
+								"today"
+							],
+							"query": [
+								{
+									"key": "min_score",
+									"value": "2",
+									"description": "Minimum importance score (1-3) to filter emails"
+								}
+							]
+						},
+						"description": "Get all emails from today, optionally filtered by importance score"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Emails by Date",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/emails/by-date/2024-02-27?min_score=1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"emails",
+								"by-date",
+								"2024-02-27"
+							],
+							"query": [
+								{
+									"key": "min_score",
+									"value": "1",
+									"description": "Minimum importance score (1-3) to filter emails"
+								}
+							]
+						},
+						"description": "Get emails from a specific date (YYYY-MM-DD format)"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Emails - Search",
+			"item": [
+				{
+					"name": "Search Emails",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"query\": \"from:example@gmail.com\",\n    \"min_score\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/emails/search",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"emails",
+								"search"
+							]
+						},
+						"description": "Search emails using Gmail query syntax with optional importance score filtering"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Emails - Status Management",
+			"item": [
+				{
+					"name": "Mark Email as Read",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/emails/{{email_id}}/read",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"emails",
+								"{{email_id}}",
+								"read"
+							]
+						},
+						"description": "Mark a specific email as read by its ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Email as Unread",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/emails/{{email_id}}/unread",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"emails",
+								"{{email_id}}",
+								"unread"
+							]
+						},
+						"description": "Mark a specific email as unread by its ID"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Emails - Delete Operations",
+			"item": [
+				{
+					"name": "Delete Single Email",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/emails/{{email_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"emails",
+								"{{email_id}}"
+							]
+						},
+						"description": "Move a single email to trash by its ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Delete Emails",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ids\": [\n        \"email_id_1\",\n        \"email_id_2\",\n        \"email_id_3\"\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/emails/bulk-delete",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"emails",
+								"bulk-delete"
+							]
+						},
+						"description": "Delete multiple emails at once by providing an array of email IDs"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string",
+			"description": "Base URL for the Gmail Manager API"
+		},
+		{
+			"key": "email_id",
+			"value": "18d8f7a2b3c4e5f6",
+			"type": "string",
+			"description": "Example email ID for testing"
+		}
+	]
+}
