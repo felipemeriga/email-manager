@@ -18,6 +18,8 @@ config/*.key
 config/*.pem
 key.json
 *.key.json
+client_secret.json
+tokencache.json
 
 # OS
 .DS_Store

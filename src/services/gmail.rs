@@ -1,3 +1,4 @@
+use crate::auth::oauth2::create_oauth2_authenticator;
 use crate::errors::ApiError;
 use crate::models::EmailSummary;
 use crate::services::scoring::EmailScorer;
@@ -18,6 +19,31 @@ pub struct GmailService {
 }
 
 impl GmailService {
+    /// Create GmailService with OAuth2 user authentication (for personal Gmail accounts)
+    pub async fn new_with_oauth2(client_secret_path: &str) -> Result<Self, ApiError> {
+        let https = hyper_rustls::HttpsConnectorBuilder::new()
+            .with_native_roots()
+            .unwrap()
+            .https_only()
+            .enable_http1()
+            .build();
+
+        let client = hyper::Client::builder().build(https);
+
+        // Use OAuth2 for user authentication
+        let auth = create_oauth2_authenticator(client_secret_path)
+            .await
+            .map_err(|e| {
+                ApiError::AuthenticationError(format!("Failed to create OAuth2 authenticator: {}", e))
+            })?;
+
+        let hub = Gmail::new(client, auth);
+        let scorer = Arc::new(Mutex::new(EmailScorer::new()));
+
+        Ok(Self { hub, scorer })
+    }
+
+    /// Create GmailService with Service Account (for Google Workspace)
     pub async fn new(service_account_path: &str) -> Result<Self, ApiError> {
         let secret = read_service_account_key(service_account_path)
             .await

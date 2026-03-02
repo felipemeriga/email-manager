@@ -18,18 +18,70 @@ A Rust-based REST API for managing Gmail emails with intelligent importance scor
 
 ### 1. Google Cloud Setup
 
-1. Create a project in Google Cloud Console
-2. Enable Gmail API
-3. Create a Service Account
-4. Download the JSON key file
-5. Place it in `config/service-account.json`
+First, enable the Gmail API:
+1. Go to [Google Cloud Console](https://console.cloud.google.com)
+2. Create or select a project
+3. Enable the Gmail API in "APIs & Services" → "Library"
 
-### 2. Configuration
+### 2. Choose Your Authentication Method
 
-Copy `.env.example` to `.env` and update:
+#### Option A: OAuth2 (For Personal Gmail Accounts) - RECOMMENDED
+
+Best for personal Gmail accounts (gmail.com):
+
+1. **Create OAuth2 Credentials:**
+   - In Google Cloud Console → "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "OAuth client ID"
+   - Choose "Desktop application"
+   - Download the JSON file as `client_secret.json`
+
+2. **Configure the app:**
+   ```bash
+   export USE_OAUTH2=true
+   export OAUTH2_CLIENT_SECRET_PATH=client_secret.json
+   export RUST_LOG=info
+   ```
+
+3. **First run will open browser for authentication**
+
+#### Option B: Service Account (For Google Workspace Only)
+
+Only works with Google Workspace (paid G Suite) accounts:
+
+1. **Create Service Account:**
+   - In Google Cloud Console → "IAM & Admin" → "Service Accounts"
+   - Create a service account
+   - Download the JSON key as `service-account.json`
+
+2. **Enable Domain-Wide Delegation:**
+   - In Google Admin Console → Security → API controls
+   - Add the service account with these scopes:
+     ```
+     https://www.googleapis.com/auth/gmail.readonly
+     https://www.googleapis.com/auth/gmail.modify
+     ```
+
+3. **Configure the app:**
+   ```bash
+   export GMAIL_SERVICE_ACCOUNT_PATH=service-account.json
+   export GMAIL_USER_EMAIL=user@yourdomain.com  # Required for impersonation
+   export RUST_LOG=info
+   ```
+
+### 3. Configuration Summary
+
+Create a `.env` file:
 
 ```bash
-SERVICE_ACCOUNT_PATH=config/service-account.json
+# For personal Gmail (OAuth2)
+USE_OAUTH2=true
+OAUTH2_CLIENT_SECRET_PATH=client_secret.json
+RUST_LOG=info
+PORT=8080
+
+# OR for Google Workspace (Service Account)
+GMAIL_SERVICE_ACCOUNT_PATH=service-account.json
+GMAIL_USER_EMAIL=user@yourdomain.com
 RUST_LOG=info
 PORT=8080
 ```
