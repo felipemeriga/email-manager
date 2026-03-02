@@ -1,8 +1,8 @@
 {
 	"info": {
-		"_postman_id": "gmail-manager-api-v1",
-		"name": "Gmail Manager API",
-		"description": "REST API for managing Gmail emails with intelligent importance scoring",
+		"_postman_id": "email-manager-api-v2",
+		"name": "Email Manager API",
+		"description": "REST API for managing Gmail emails via IMAP with intelligent importance scoring. Supports personal Gmail accounts using App Passwords.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -186,6 +186,32 @@
 							]
 						},
 						"description": "Mark a specific email as unread by its ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Mark as Read",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/emails/bulk-mark-read?count=50",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"emails",
+								"bulk-mark-read"
+							],
+							"query": [
+								{
+									"key": "count",
+									"value": "50",
+									"description": "Number of emails to mark as read (default: 50, max: 500)"
+								}
+							]
+						},
+						"description": "Mark multiple recent unread emails as read at once. Marks the most recent unread emails up to the specified count."
 					},
 					"response": []
 				}
