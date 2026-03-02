@@ -4,7 +4,7 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 pub struct Settings {
     pub server: ServerConfig,
-    pub gmail: GmailConfig,
+    pub email: EmailConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -14,8 +14,9 @@ pub struct ServerConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct GmailConfig {
-    pub service_account_path: String,
+pub struct EmailConfig {
+    pub email_address: String,
+    pub app_password: String,
 }
 
 impl Settings {

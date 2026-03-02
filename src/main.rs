@@ -3,7 +3,7 @@ use anyhow::Result;
 use email_manager::config::Settings;
 use email_manager::handlers;
 use email_manager::handlers::emails as email_handlers;
-use email_manager::services::gmail::GmailService;
+use email_manager::services::imap_service::ImapService;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::info;
@@ -21,9 +21,11 @@ async fn main() -> Result<()> {
             host: "127.0.0.1".to_string(),
             port: 8080,
         },
-        gmail: email_manager::config::GmailConfig {
-            service_account_path: std::env::var("GMAIL_SERVICE_ACCOUNT_PATH")
-                .unwrap_or_else(|_| "service-account.json".to_string()),
+        email: email_manager::config::EmailConfig {
+            email_address: std::env::var("GMAIL_EMAIL")
+                .unwrap_or_else(|_| "your-email@gmail.com".to_string()),
+            app_password: std::env::var("GMAIL_APP_PASSWORD")
+                .unwrap_or_else(|_| "your-app-password".to_string()),
         },
     });
 
@@ -31,55 +33,32 @@ async fn main() -> Result<()> {
         "Configuration loaded: {}:{}",
         settings.server.host, settings.server.port
     );
-    info!(
-        "Using service account: {}",
-        settings.gmail.service_account_path
-    );
+    info!("Using IMAP authentication for email: {}", settings.email.email_address);
 
-    // Initialize Gmail service
-    // Note: For container deployment, OAuth2 with browser won't work
-    info!("Using Service Account authentication");
-    info!("Service account path: {}", settings.gmail.service_account_path);
+    // Initialize IMAP service
+    info!("Initializing IMAP service...");
+    info!("Connecting to Gmail IMAP server (imap.gmail.com:993)");
 
-    // Check if user email is configured for impersonation
-    if let Ok(user_email) = std::env::var("GMAIL_USER_EMAIL") {
-        info!("Will attempt to impersonate user: {}", user_email);
-        tracing::warn!("IMPORTANT: Service Account impersonation requires:");
-        tracing::warn!("1. Google Workspace (paid G Suite) account - NOT gmail.com");
-        tracing::warn!("2. Domain-wide delegation enabled in Google Admin Console");
-        tracing::warn!("3. Service account authorized with Gmail scopes");
-    } else {
-        tracing::warn!("No GMAIL_USER_EMAIL set - Service Account will try default access");
-        tracing::warn!("Note: Service accounts CANNOT access personal Gmail (gmail.com) accounts");
-        tracing::warn!("For personal Gmail in containers, you need:");
-        tracing::warn!("1. Use Google Workspace account instead, OR");
-        tracing::warn!("2. Use Gmail API with API key (limited operations), OR");
-        tracing::warn!("3. Pre-authorize OAuth2 locally and mount the token file");
-    }
+    let email_service = Arc::new(Mutex::new(
+        ImapService::new(
+            settings.email.email_address.clone(),
+            settings.email.app_password.clone(),
+        )
+    ));
 
-    let gmail_service = match GmailService::new(&settings.gmail.service_account_path).await {
-        Ok(service) => Arc::new(Mutex::new(service)),
-        Err(e) => {
-            tracing::error!("Failed to initialize Gmail service: {}", e);
-            tracing::error!("");
-            tracing::error!("Common issues:");
-            tracing::error!("1. Gmail API not enabled in Google Cloud Console");
-            tracing::error!("2. Service account JSON file invalid or not found");
-            tracing::error!("3. Trying to access personal Gmail (service accounts don't work with gmail.com)");
-            tracing::error!("4. Missing domain-wide delegation for Google Workspace");
-            return Err(anyhow::anyhow!("Gmail service initialization failed: {}", e));
-        }
-    };
+    info!("IMAP service initialized successfully");
+    info!("Note: Make sure you're using an App Password, not your regular Gmail password");
+    info!("Create one at: https://myaccount.google.com/apppasswords");
 
     let server_host = settings.server.host.clone();
     let server_port = settings.server.port;
 
-    info!("Gmail service initialized successfully");
+    info!("Email service ready");
 
     // Create and run HTTP server
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(gmail_service.clone()))
+            .app_data(web::Data::new(email_service.clone()))
             .wrap(actix_middleware::Logger::default())
             // Health endpoint
             .route("/health", web::get().to(handlers::health))
@@ -115,6 +94,10 @@ async fn main() -> Result<()> {
             .route(
                 "/emails/bulk-delete",
                 web::post().to(email_handlers::bulk_delete),
+            )
+            .route(
+                "/emails/bulk-mark-read",
+                web::post().to(email_handlers::bulk_mark_as_read),
             )
     })
     .bind((&server_host[..], server_port))?

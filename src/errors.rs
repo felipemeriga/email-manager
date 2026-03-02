@@ -18,8 +18,11 @@ pub enum ApiError {
     #[error("Rate limit exceeded")]
     RateLimitError,
 
-    #[error("Internal server error")]
-    InternalError,
+    #[error("Internal server error: {0}")]
+    InternalError(String),
+
+    #[error("Connection error: {0}")]
+    ConnectionError(String),
 }
 
 impl ResponseError for ApiError {

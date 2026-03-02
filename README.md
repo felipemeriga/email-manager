@@ -1,78 +1,45 @@
-# Gmail Manager API
+# Email Manager API
 
 [![Rust CI](https://github.com/felipemeriga/email-manager/actions/workflows/rust.yml/badge.svg)](https://github.com/felipemeriga/email-manager/actions/workflows/rust.yml)
 [![Docker Hub](https://img.shields.io/docker/v/felipemeriga1/email-manager?label=docker&sort=semver)](https://hub.docker.com/r/felipemeriga1/email-manager)
 
-A Rust-based REST API for managing Gmail emails with intelligent importance scoring.
+A Rust-based REST API for managing Gmail emails using IMAP with intelligent importance scoring.
 
 ## Features
 
 - 📧 Read Gmail emails (recent, today, by date)
 - 🔍 Search and filter emails
-- ✅ Mark emails as read/unread
+- ✅ Mark emails as read/unread (single or bulk)
 - 🗑️ Delete emails (single or bulk)
 - ⭐ Automatic importance scoring (1-3 scale)
-- 🔐 Secure Service Account authentication
+- 🔐 Secure IMAP authentication with App Passwords
 
 ## Setup
 
-### 1. Google Cloud Setup
+### 1. Gmail App Password Setup
 
-First, enable the Gmail API:
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create or select a project
-3. Enable the Gmail API in "APIs & Services" → "Library"
+This API uses IMAP to access Gmail, which works with both personal Gmail accounts and Google Workspace accounts.
 
-### 2. Authentication Setup
+1. **Enable 2-Factor Authentication:**
+   - Go to your [Google Account settings](https://myaccount.google.com/security)
+   - Enable 2-Step Verification if not already enabled
 
-> **⚠️ IMPORTANT**: Service accounts CANNOT access personal Gmail (gmail.com) accounts!
+2. **Create an App Password:**
+   - Go to [App passwords page](https://myaccount.google.com/apppasswords)
+   - Select "Mail" as the app
+   - Generate a 16-character app password
+   - Save this password securely
 
-#### For Google Workspace Accounts (Company/Organization Email)
+> **Note**: App Passwords are the recommended way to authenticate with Gmail via IMAP, especially for containerized deployments where browser-based OAuth is not feasible.
 
-If you have a Google Workspace account (e.g., user@yourcompany.com):
-
-1. **Create Service Account:**
-   - In Google Cloud Console → "IAM & Admin" → "Service Accounts"
-   - Create a service account
-   - Download the JSON key as `service-account.json`
-
-2. **Enable Domain-Wide Delegation:**
-   - In Google Admin Console → Security → API controls
-   - Add the service account with these scopes:
-     ```
-     https://www.googleapis.com/auth/gmail.readonly
-     https://www.googleapis.com/auth/gmail.modify
-     ```
-
-3. **Configure the app:**
-   ```bash
-   export GMAIL_SERVICE_ACCOUNT_PATH=service-account.json
-   export GMAIL_USER_EMAIL=user@yourdomain.com  # Required for impersonation
-   export RUST_LOG=info
-   ```
-
-#### For Personal Gmail Accounts (gmail.com)
-
-**Container deployment with personal Gmail is challenging** because:
-- Service accounts don't work with personal Gmail
-- OAuth2 requires browser interaction (not available in containers)
-
-**Workarounds:**
-1. **Use Google Workspace instead** (recommended)
-2. **Pre-authorize locally and mount token**:
-   - Run the app locally with OAuth2 first
-   - Authorize in browser and generate `tokencache.json`
-   - Mount this token file in your container
-3. **Consider using IMAP/SMTP** instead of Gmail API for personal accounts
-
-### 3. Configuration
+### 2. Configuration
 
 Create a `.env` file:
 
 ```bash
-# For Google Workspace (Service Account)
-GMAIL_SERVICE_ACCOUNT_PATH=service-account.json
-GMAIL_USER_EMAIL=user@yourcompany.com  # Required for Workspace
+# Gmail credentials
+GMAIL_EMAIL=your-email@gmail.com
+GMAIL_APP_PASSWORD=your-16-char-app-password
 RUST_LOG=info
 PORT=8080
 ```
@@ -100,8 +67,9 @@ A complete Postman collection is available in [`postman_collection.json`](./post
 - `GET /emails/today?min_score=2` - Get today's emails
 - `GET /emails/by-date/{YYYY-MM-DD}?min_score=2` - Get emails by date
 - `POST /emails/search` - Search emails with query
-- `POST /emails/{id}/read` - Mark as read
-- `POST /emails/{id}/unread` - Mark as unread
+- `POST /emails/{id}/read` - Mark single email as read
+- `POST /emails/{id}/unread` - Mark single email as unread
+- `POST /emails/bulk-mark-read?count=50` - Mark multiple emails as read (default: 50, max: 500)
 - `DELETE /emails/{id}` - Delete single email
 - `POST /emails/bulk-delete` - Delete multiple emails
 
@@ -143,10 +111,14 @@ cargo test test_name
 docker pull felipemeriga1/email-manager:latest
 
 # Build locally
-docker build -t gmail-manager .
+docker build -t email-manager .
 
-# Run container
-docker run -p 8080:8080 -v $(pwd)/config:/app/config felipemeriga1/email-manager:latest
+# Run container with environment variables
+docker run -p 8080:8080 \
+  -e GMAIL_EMAIL=your-email@gmail.com \
+  -e GMAIL_APP_PASSWORD=your-app-password \
+  -e RUST_LOG=info \
+  felipemeriga1/email-manager:latest
 ```
 
 ## CI/CD
