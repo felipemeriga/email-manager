@@ -23,30 +23,13 @@ First, enable the Gmail API:
 2. Create or select a project
 3. Enable the Gmail API in "APIs & Services" → "Library"
 
-### 2. Choose Your Authentication Method
+### 2. Authentication Setup
 
-#### Option A: OAuth2 (For Personal Gmail Accounts) - RECOMMENDED
+> **⚠️ IMPORTANT**: Service accounts CANNOT access personal Gmail (gmail.com) accounts!
 
-Best for personal Gmail accounts (gmail.com):
+#### For Google Workspace Accounts (Company/Organization Email)
 
-1. **Create OAuth2 Credentials:**
-   - In Google Cloud Console → "APIs & Services" → "Credentials"
-   - Click "Create Credentials" → "OAuth client ID"
-   - Choose "Desktop application"
-   - Download the JSON file as `client_secret.json`
-
-2. **Configure the app:**
-   ```bash
-   export USE_OAUTH2=true
-   export OAUTH2_CLIENT_SECRET_PATH=client_secret.json
-   export RUST_LOG=info
-   ```
-
-3. **First run will open browser for authentication**
-
-#### Option B: Service Account (For Google Workspace Only)
-
-Only works with Google Workspace (paid G Suite) accounts:
+If you have a Google Workspace account (e.g., user@yourcompany.com):
 
 1. **Create Service Account:**
    - In Google Cloud Console → "IAM & Admin" → "Service Accounts"
@@ -68,20 +51,28 @@ Only works with Google Workspace (paid G Suite) accounts:
    export RUST_LOG=info
    ```
 
-### 3. Configuration Summary
+#### For Personal Gmail Accounts (gmail.com)
+
+**Container deployment with personal Gmail is challenging** because:
+- Service accounts don't work with personal Gmail
+- OAuth2 requires browser interaction (not available in containers)
+
+**Workarounds:**
+1. **Use Google Workspace instead** (recommended)
+2. **Pre-authorize locally and mount token**:
+   - Run the app locally with OAuth2 first
+   - Authorize in browser and generate `tokencache.json`
+   - Mount this token file in your container
+3. **Consider using IMAP/SMTP** instead of Gmail API for personal accounts
+
+### 3. Configuration
 
 Create a `.env` file:
 
 ```bash
-# For personal Gmail (OAuth2)
-USE_OAUTH2=true
-OAUTH2_CLIENT_SECRET_PATH=client_secret.json
-RUST_LOG=info
-PORT=8080
-
-# OR for Google Workspace (Service Account)
+# For Google Workspace (Service Account)
 GMAIL_SERVICE_ACCOUNT_PATH=service-account.json
-GMAIL_USER_EMAIL=user@yourdomain.com
+GMAIL_USER_EMAIL=user@yourcompany.com  # Required for Workspace
 RUST_LOG=info
 PORT=8080
 ```

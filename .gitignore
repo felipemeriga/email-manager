@@ -19,6 +19,7 @@ config/*.pem
 key.json
 *.key.json
 client_secret.json
+secret.json
 tokencache.json
 
 # OS

@@ -1,14 +1,16 @@
 use anyhow::Result;
+use google_gmail1::{hyper, hyper_rustls};
 use google_gmail1::oauth2::{
     ApplicationSecret, InstalledFlowAuthenticator, InstalledFlowReturnMethod,
+    authenticator::Authenticator,
 };
 use std::path::Path;
 
 /// Create an OAuth2 authenticator for user authentication
-/// This works with personal Gmail accounts
+/// This works with personal Gmail accounts but requires browser interaction
 pub async fn create_oauth2_authenticator(
     client_secret_path: &str,
-) -> Result<InstalledFlowAuthenticator> {
+) -> Result<Authenticator<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>> {
     // Read the OAuth2 client configuration
     let secret = read_client_secret(client_secret_path).await?;
 

@@ -36,52 +36,38 @@ async fn main() -> Result<()> {
         settings.gmail.service_account_path
     );
 
-    // Determine authentication method
-    let use_oauth2 = std::env::var("USE_OAUTH2")
-        .unwrap_or_else(|_| "false".to_string())
-        .parse::<bool>()
-        .unwrap_or(false);
+    // Initialize Gmail service
+    // Note: For container deployment, OAuth2 with browser won't work
+    info!("Using Service Account authentication");
+    info!("Service account path: {}", settings.gmail.service_account_path);
 
-    // Initialize Gmail service with appropriate authentication
-    let gmail_service = if use_oauth2 {
-        info!("Using OAuth2 authentication (for personal Gmail accounts)");
-        info!("First run will open browser for authentication");
-
-        let client_secret_path = std::env::var("OAUTH2_CLIENT_SECRET_PATH")
-            .unwrap_or_else(|_| "client_secret.json".to_string());
-
-        match GmailService::new_with_oauth2(&client_secret_path).await {
-            Ok(service) => Arc::new(Mutex::new(service)),
-            Err(e) => {
-                tracing::error!("Failed to initialize Gmail service with OAuth2: {}", e);
-                tracing::error!("Make sure you have:");
-                tracing::error!("1. Created OAuth2 credentials in Google Cloud Console");
-                tracing::error!("2. Downloaded the client_secret.json file");
-                tracing::error!("3. Set USE_OAUTH2=true and OAUTH2_CLIENT_SECRET_PATH=path/to/client_secret.json");
-                return Err(anyhow::anyhow!("OAuth2 initialization failed: {}", e));
-            }
-        }
+    // Check if user email is configured for impersonation
+    if let Ok(user_email) = std::env::var("GMAIL_USER_EMAIL") {
+        info!("Will attempt to impersonate user: {}", user_email);
+        tracing::warn!("IMPORTANT: Service Account impersonation requires:");
+        tracing::warn!("1. Google Workspace (paid G Suite) account - NOT gmail.com");
+        tracing::warn!("2. Domain-wide delegation enabled in Google Admin Console");
+        tracing::warn!("3. Service account authorized with Gmail scopes");
     } else {
-        info!("Using Service Account authentication");
+        tracing::warn!("No GMAIL_USER_EMAIL set - Service Account will try default access");
+        tracing::warn!("Note: Service accounts CANNOT access personal Gmail (gmail.com) accounts");
+        tracing::warn!("For personal Gmail in containers, you need:");
+        tracing::warn!("1. Use Google Workspace account instead, OR");
+        tracing::warn!("2. Use Gmail API with API key (limited operations), OR");
+        tracing::warn!("3. Pre-authorize OAuth2 locally and mount the token file");
+    }
 
-        // Check if user email is configured for impersonation
-        if let Ok(user_email) = std::env::var("GMAIL_USER_EMAIL") {
-            info!("Will impersonate user: {}", user_email);
-            info!("Note: This requires Google Workspace with domain-wide delegation configured");
-        } else {
-            info!("No GMAIL_USER_EMAIL set");
-            info!("Service accounts cannot access personal Gmail accounts!");
-            info!("For personal Gmail, set USE_OAUTH2=true instead");
-        }
-
-        match GmailService::new(&settings.gmail.service_account_path).await {
-            Ok(service) => Arc::new(Mutex::new(service)),
-            Err(e) => {
-                tracing::error!("Failed to initialize Gmail service with Service Account: {}", e);
-                tracing::error!("For personal Gmail accounts, use OAuth2 instead:");
-                tracing::error!("Set USE_OAUTH2=true and provide client_secret.json");
-                return Err(anyhow::anyhow!("Service Account initialization failed: {}", e));
-            }
+    let gmail_service = match GmailService::new(&settings.gmail.service_account_path).await {
+        Ok(service) => Arc::new(Mutex::new(service)),
+        Err(e) => {
+            tracing::error!("Failed to initialize Gmail service: {}", e);
+            tracing::error!("");
+            tracing::error!("Common issues:");
+            tracing::error!("1. Gmail API not enabled in Google Cloud Console");
+            tracing::error!("2. Service account JSON file invalid or not found");
+            tracing::error!("3. Trying to access personal Gmail (service accounts don't work with gmail.com)");
+            tracing::error!("4. Missing domain-wide delegation for Google Workspace");
+            return Err(anyhow::anyhow!("Gmail service initialization failed: {}", e));
         }
     };
 
