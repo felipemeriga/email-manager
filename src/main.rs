@@ -3,10 +3,12 @@ use anyhow::Result;
 use email_manager::config::Settings;
 use email_manager::handlers;
 use email_manager::handlers::emails as email_handlers;
+use email_manager::middleware::auth::ApiTokenAuth;
 use email_manager::services::imap_service::ImapService;
+use std::env;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{error, info};
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -14,6 +16,12 @@ async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
 
     info!("Starting Gmail Manager API");
+
+    // Load API token from environment variable
+    let api_token = env::var("API_TOKEN").unwrap_or_else(|_| {
+        error!("API_TOKEN environment variable not set. Using default token 'dev-token'");
+        "dev-token".to_string()
+    });
 
     // Load configuration
     let settings = Settings::from_env().unwrap_or_else(|_| Settings {
@@ -51,6 +59,9 @@ async fn main() -> Result<()> {
     info!("Note: Make sure you're using an App Password, not your regular Gmail password");
     info!("Create one at: https://myaccount.google.com/apppasswords");
 
+    info!("API authentication enabled - use 'Authorization: Bearer <token>' header");
+    info!("Token authentication required for all endpoints except /health");
+
     let server_host = settings.server.host.clone();
     let server_port = settings.server.port;
 
@@ -60,6 +71,7 @@ async fn main() -> Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(email_service.clone()))
+            .wrap(ApiTokenAuth::new(api_token.clone()))
             .wrap(actix_middleware::Logger::default())
             // Health endpoint
             .route("/health", web::get().to(handlers::health))

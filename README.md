@@ -13,6 +13,7 @@ A Rust-based REST API for managing Gmail emails using IMAP with intelligent impo
 - 🗑️ Delete emails (single or bulk)
 - ⭐ Automatic importance scoring (1-3 scale)
 - 🔐 Secure IMAP authentication with App Passwords
+- 🔑 API token authentication for all endpoints
 
 ## Setup
 
@@ -40,6 +41,11 @@ Create a `.env` file:
 # Gmail credentials
 GMAIL_EMAIL=your-email@gmail.com
 GMAIL_APP_PASSWORD=your-16-char-app-password
+
+# API Token for authentication
+API_TOKEN=your-secure-api-token
+
+# Server configuration
 RUST_LOG=info
 PORT=8080
 ```
@@ -58,6 +64,12 @@ cargo run
 ```
 
 ## API Endpoints
+
+All endpoints except `/health` require authentication via Bearer token in the `Authorization` header:
+
+```
+Authorization: Bearer <your-api-token>
+```
 
 A complete Postman collection is available in [`postman_collection.json`](./postman_collection.json) for easy API testing.
 
@@ -117,6 +129,7 @@ docker build -t email-manager .
 docker run -p 8080:8080 \
   -e GMAIL_EMAIL=your-email@gmail.com \
   -e GMAIL_APP_PASSWORD=your-app-password \
+  -e API_TOKEN=your-secure-api-token \
   -e RUST_LOG=info \
   felipemeriga1/email-manager:latest
 ```
