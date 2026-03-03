@@ -33,18 +33,19 @@ async fn main() -> Result<()> {
         "Configuration loaded: {}:{}",
         settings.server.host, settings.server.port
     );
-    info!("Using IMAP authentication for email: {}", settings.email.email_address);
+    info!(
+        "Using IMAP authentication for email: {}",
+        settings.email.email_address
+    );
 
     // Initialize IMAP service
     info!("Initializing IMAP service...");
     info!("Connecting to Gmail IMAP server (imap.gmail.com:993)");
 
-    let email_service = Arc::new(Mutex::new(
-        ImapService::new(
-            settings.email.email_address.clone(),
-            settings.email.app_password.clone(),
-        )
-    ));
+    let email_service = Arc::new(Mutex::new(ImapService::new(
+        settings.email.email_address.clone(),
+        settings.email.app_password.clone(),
+    )));
 
     info!("IMAP service initialized successfully");
     info!("Note: Make sure you're using an App Password, not your regular Gmail password");

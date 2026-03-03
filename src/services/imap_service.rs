@@ -44,9 +44,9 @@ impl ImapService {
             })?;
 
         // Select INBOX
-        session.select("INBOX").map_err(|e| {
-            ApiError::InternalError(format!("Failed to select INBOX: {}", e))
-        })?;
+        session
+            .select("INBOX")
+            .map_err(|e| ApiError::InternalError(format!("Failed to select INBOX: {}", e)))?;
 
         Ok(session)
     }
@@ -56,7 +56,8 @@ impl ImapService {
 
         // Search for recent messages
         let search_query = "ALL";
-        let messages = session.search(search_query)
+        let messages = session
+            .search(search_query)
             .map_err(|e| ApiError::InternalError(format!("Search failed: {}", e)))?;
 
         // Get the most recent messages (already sorted by uid)
@@ -90,7 +91,8 @@ impl ImapService {
         let date_str = date.format("%d-%b-%Y").to_string();
         let search_query = format!("ON {}", date_str);
 
-        let messages = session.search(&search_query)
+        let messages = session
+            .search(&search_query)
             .map_err(|e| ApiError::InternalError(format!("Search failed: {}", e)))?;
 
         let mut emails = Vec::new();
@@ -121,7 +123,8 @@ impl ImapService {
             format!("TEXT \"{}\"", query)
         };
 
-        let messages = session.search(&imap_query)
+        let messages = session
+            .search(&imap_query)
             .map_err(|e| ApiError::InternalError(format!("Search failed: {}", e)))?;
 
         let mut emails = Vec::new();
@@ -142,10 +145,12 @@ impl ImapService {
     pub async fn mark_as_read(&self, message_id: &str) -> Result<(), ApiError> {
         let mut session = self.create_session()?;
 
-        let uid: u32 = message_id.parse()
+        let uid: u32 = message_id
+            .parse()
             .map_err(|_| ApiError::ValidationError("Invalid message ID".to_string()))?;
 
-        session.store(format!("{}", uid), "+FLAGS (\\Seen)")
+        session
+            .store(format!("{}", uid), "+FLAGS (\\Seen)")
             .map_err(|e| ApiError::InternalError(format!("Failed to mark as read: {}", e)))?;
 
         let _ = session.logout();
@@ -155,10 +160,12 @@ impl ImapService {
     pub async fn mark_as_unread(&self, message_id: &str) -> Result<(), ApiError> {
         let mut session = self.create_session()?;
 
-        let uid: u32 = message_id.parse()
+        let uid: u32 = message_id
+            .parse()
             .map_err(|_| ApiError::ValidationError("Invalid message ID".to_string()))?;
 
-        session.store(format!("{}", uid), "-FLAGS (\\Seen)")
+        session
+            .store(format!("{}", uid), "-FLAGS (\\Seen)")
             .map_err(|e| ApiError::InternalError(format!("Failed to mark as unread: {}", e)))?;
 
         let _ = session.logout();
@@ -168,15 +175,18 @@ impl ImapService {
     pub async fn delete_email(&self, message_id: &str) -> Result<(), ApiError> {
         let mut session = self.create_session()?;
 
-        let uid: u32 = message_id.parse()
+        let uid: u32 = message_id
+            .parse()
             .map_err(|_| ApiError::ValidationError("Invalid message ID".to_string()))?;
 
         // Mark as deleted
-        session.store(format!("{}", uid), "+FLAGS (\\Deleted)")
+        session
+            .store(format!("{}", uid), "+FLAGS (\\Deleted)")
             .map_err(|e| ApiError::InternalError(format!("Failed to delete: {}", e)))?;
 
         // Expunge to actually delete
-        session.expunge()
+        session
+            .expunge()
             .map_err(|e| ApiError::InternalError(format!("Failed to expunge: {}", e)))?;
 
         let _ = session.logout();
@@ -188,16 +198,14 @@ impl ImapService {
 
         // Get the most recent unread messages
         let search_query = "UNSEEN";
-        let messages = session.search(search_query)
+        let messages = session
+            .search(search_query)
             .map_err(|e| ApiError::InternalError(format!("Search failed: {}", e)))?;
 
         // Take only the requested count
         let mut messages_vec: Vec<_> = messages.into_iter().collect();
         messages_vec.reverse(); // Most recent first
-        let messages_to_mark: Vec<_> = messages_vec
-            .into_iter()
-            .take(count as usize)
-            .collect();
+        let messages_to_mark: Vec<_> = messages_vec.into_iter().take(count as usize).collect();
 
         let total_marked = messages_to_mark.len();
 
@@ -216,13 +224,17 @@ impl ImapService {
 
         for id in ids {
             if let Ok(uid) = id.parse::<u32>() {
-                if session.store(format!("{}", uid), "+FLAGS (\\Deleted)").is_ok() {
+                if session
+                    .store(format!("{}", uid), "+FLAGS (\\Deleted)")
+                    .is_ok()
+                {
                     deleted += 1;
                 }
             }
         }
 
-        session.expunge()
+        session
+            .expunge()
             .map_err(|e| ApiError::InternalError(format!("Failed to expunge: {}", e)))?;
 
         let _ = session.logout();
@@ -238,10 +250,13 @@ impl ImapService {
             .fetch(format!("{}", uid), "RFC822")
             .map_err(|e| ApiError::InternalError(format!("Fetch failed: {}", e)))?;
 
-        let message = messages.iter().next()
+        let message = messages
+            .iter()
+            .next()
             .ok_or_else(|| ApiError::InternalError("No message found".to_string()))?;
 
-        let body = message.body()
+        let body = message
+            .body()
             .ok_or_else(|| ApiError::InternalError("No message body".to_string()))?;
 
         // Parse the email
@@ -249,23 +264,26 @@ impl ImapService {
             .map_err(|e| ApiError::InternalError(format!("Failed to parse email: {}", e)))?;
 
         // Extract headers using proper mailparse API
-        let from = parsed.headers
+        let from = parsed
+            .headers
             .iter()
             .find(|h| h.get_key_ref().eq_ignore_ascii_case("From"))
             .map(|h| h.get_value())
-            .unwrap_or_else(|| String::new());
+            .unwrap_or_else(String::new);
 
-        let subject = parsed.headers
+        let subject = parsed
+            .headers
             .iter()
             .find(|h| h.get_key_ref().eq_ignore_ascii_case("Subject"))
             .map(|h| h.get_value())
-            .unwrap_or_else(|| String::new());
+            .unwrap_or_else(String::new);
 
-        let date_str = parsed.headers
+        let date_str = parsed
+            .headers
             .iter()
             .find(|h| h.get_key_ref().eq_ignore_ascii_case("Date"))
             .map(|h| h.get_value())
-            .unwrap_or_else(|| String::new());
+            .unwrap_or_else(String::new);
 
         // Parse date
         let date = if !date_str.is_empty() {
@@ -330,7 +348,8 @@ impl ImapService {
 
     pub async fn get_email_by_id(&self, id: &str) -> Result<EmailSummary, ApiError> {
         let mut session = self.create_session()?;
-        let uid: u32 = id.parse()
+        let uid: u32 = id
+            .parse()
             .map_err(|_| ApiError::ValidationError("Invalid message ID".to_string()))?;
 
         let email = self.fetch_email(&mut session, uid).await?;
