@@ -71,6 +71,9 @@ impl ImapService {
             }
         }
 
+        // Sort emails by date, most recent first
+        emails.sort_by(|a, b| b.date.cmp(&a.date));
+
         // Logout
         let _ = session.logout();
 
@@ -96,6 +99,9 @@ impl ImapService {
                 emails.push(email);
             }
         }
+
+        // Sort emails by date, most recent first
+        emails.sort_by(|a, b| b.date.cmp(&a.date));
 
         let _ = session.logout();
 
@@ -124,6 +130,9 @@ impl ImapService {
                 emails.push(email);
             }
         }
+
+        // Sort emails by date, most recent first
+        emails.sort_by(|a, b| b.date.cmp(&a.date));
 
         let _ = session.logout();
 
