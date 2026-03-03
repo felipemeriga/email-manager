@@ -14,6 +14,7 @@ A Rust-based REST API for managing Gmail emails using IMAP with intelligent impo
 - ⭐ Automatic importance scoring (1-3 scale)
 - 🔐 Secure IMAP authentication with App Passwords
 - 🔑 API token authentication for all endpoints
+- 🔢 MFA/2FA code extraction from verification emails
 
 ## Setup
 
@@ -84,6 +85,15 @@ A complete Postman collection is available in [`postman_collection.json`](./post
 - `POST /emails/bulk-mark-read?count=50` - Mark multiple emails as read (default: 50, max: 500)
 - `DELETE /emails/{id}` - Delete single email
 - `POST /emails/bulk-delete` - Delete multiple emails
+
+### MFA Code Extraction
+
+- `GET /mfa/codes?minutes=5&service=Google` - Extract MFA codes from recent emails
+  - `minutes`: Time window to search (default: 5)
+  - `service`: Optional filter by service name
+  - `limit`: Maximum codes to return (default: 20)
+- `GET /mfa/latest?service=GitHub` - Get the most recent MFA code
+  - Returns the latest verification code found in emails
 
 ### Health Check
 

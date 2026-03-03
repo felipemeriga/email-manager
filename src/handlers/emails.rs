@@ -1,8 +1,10 @@
 use crate::errors::ApiError;
 use crate::models::{BulkDeleteRequest, SearchQuery};
 use crate::services::imap_service::ImapService;
+use crate::services::mfa_extractor::{MfaCode, MfaExtractor};
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
+use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -189,4 +191,142 @@ pub async fn bulk_delete(
         "failed": failed_ids.len(),
         "failed_ids": failed_ids
     })))
+}
+
+#[derive(Deserialize)]
+pub struct MfaQueryParams {
+    #[serde(default = "default_limit")]
+    limit: u32,
+    #[serde(default = "default_minutes")]
+    minutes: u32,
+    service: Option<String>,
+}
+
+fn default_limit() -> u32 {
+    20
+}
+
+fn default_minutes() -> u32 {
+    5
+}
+
+pub async fn get_mfa_codes(
+    email_service: web::Data<SharedEmailService>,
+    query: web::Query<MfaQueryParams>,
+) -> Result<HttpResponse, ApiError> {
+    let service = email_service.lock().await;
+
+    // Get recent emails (look at more emails to find MFA codes)
+    let search_limit = query.limit.clamp(20, 100);
+    tracing::info!("Searching for MFA codes in {} recent emails", search_limit);
+
+    let emails = service.get_recent_emails(search_limit).await?;
+
+    // Filter emails by time window (only look at emails from the last X minutes)
+    let cutoff_time = Utc::now() - chrono::Duration::minutes(query.minutes as i64);
+    let recent_emails: Vec<_> = emails
+        .into_iter()
+        .filter(|email| email.date >= cutoff_time)
+        .collect();
+
+    tracing::info!("Found {} emails within the last {} minutes", recent_emails.len(), query.minutes);
+
+    // Extract MFA codes from emails
+    let mut all_codes = Vec::new();
+
+    for email in recent_emails {
+        // Get full email content if we need to extract from body
+        // For now, we'll work with the snippet which often contains the code
+        let codes = MfaExtractor::extract_codes(
+            &email.id,
+            Some(&email.subject),
+            Some(&email.sender_email),
+            Some(&email.snippet),
+            email.date,
+        );
+
+        // If we found codes and there's a service filter, apply it
+        if let Some(ref filter_service) = query.service {
+            let filter_lower = filter_service.to_lowercase();
+            for code in codes {
+                if let Some(ref service) = code.service {
+                    if service.to_lowercase().contains(&filter_lower) {
+                        all_codes.push(code);
+                    }
+                }
+            }
+        } else {
+            all_codes.extend(codes);
+        }
+    }
+
+    // Sort by date (newest first)
+    all_codes.sort_by(|a, b| b.email_date.cmp(&a.email_date));
+
+    // Limit the number of codes returned
+    all_codes.truncate(query.limit as usize);
+
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "codes": all_codes,
+        "count": all_codes.len(),
+        "search_window_minutes": query.minutes,
+        "service_filter": query.service
+    })))
+}
+
+pub async fn get_latest_mfa_code(
+    email_service: web::Data<SharedEmailService>,
+    query: web::Query<MfaQueryParams>,
+) -> Result<HttpResponse, ApiError> {
+    let service = email_service.lock().await;
+
+    // Get recent emails
+    let search_limit = 50; // Look at up to 50 emails to find the latest code
+    let emails = service.get_recent_emails(search_limit).await?;
+
+    // Filter emails by time window
+    let cutoff_time = Utc::now() - chrono::Duration::minutes(query.minutes as i64);
+
+    // Look for the first (most recent) email with an MFA code
+    for email in emails {
+        if email.date < cutoff_time {
+            break; // Stop if we've gone past the time window
+        }
+
+        let codes = MfaExtractor::extract_codes(
+            &email.id,
+            Some(&email.subject),
+            Some(&email.sender_email),
+            Some(&email.snippet),
+            email.date,
+        );
+
+        if !codes.is_empty() {
+            // If there's a service filter, check if it matches
+            if let Some(ref filter_service) = query.service {
+                let filter_lower = filter_service.to_lowercase();
+                for code in codes {
+                    if let Some(ref service) = code.service {
+                        if service.to_lowercase().contains(&filter_lower) {
+                            return Ok(HttpResponse::Ok().json(code));
+                        }
+                    }
+                }
+            } else {
+                // Return the first code found
+                return Ok(HttpResponse::Ok().json(&codes[0]));
+            }
+        }
+    }
+
+    // No MFA code found
+    Err(ApiError::NotFound(format!(
+        "No MFA code found in emails from the last {} minutes{}",
+        query.minutes,
+        if let Some(ref s) = query.service {
+            format!(" for service: {}", s)
+        } else {
+            String::new()
+        }
+    )))
 }

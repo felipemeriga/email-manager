@@ -112,6 +112,12 @@ async fn main() -> Result<()> {
                 "/emails/bulk-mark-read",
                 web::post().to(email_handlers::bulk_mark_as_read),
             )
+            // MFA code extraction endpoints
+            .route("/mfa/codes", web::get().to(email_handlers::get_mfa_codes))
+            .route(
+                "/mfa/latest",
+                web::get().to(email_handlers::get_latest_mfa_code),
+            )
     })
     .bind((&server_host[..], server_port))?
     .run()

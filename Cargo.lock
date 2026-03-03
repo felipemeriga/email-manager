@@ -629,6 +629,7 @@ dependencies = [
  "mailparse",
  "mockall",
  "native-tls",
+ "regex",
  "serde",
  "serde_json",
  "thiserror",
