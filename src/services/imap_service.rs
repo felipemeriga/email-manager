@@ -1,58 +1,56 @@
 use crate::errors::ApiError;
 use crate::models::EmailSummary;
+use crate::services::connection_pool::ImapConnectionPool;
+use crate::services::email_cache::EmailCache;
 use crate::services::scoring::EmailScorer;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use imap::Session;
-use native_tls::{TlsConnector, TlsStream};
+use native_tls::TlsStream;
 use std::net::TcpStream;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub struct ImapService {
-    email: String,
-    password: String,
+    pool: Arc<ImapConnectionPool>,
+    cache: Arc<EmailCache>,
     scorer: Arc<Mutex<EmailScorer>>,
 }
 
 impl ImapService {
     pub fn new(email: String, password: String) -> Self {
+        let pool = Arc::new(ImapConnectionPool::new(email, password));
+        let cache = Arc::new(EmailCache::new(300)); // 5 minute TTL
+
         Self {
-            email,
-            password,
+            pool,
+            cache,
             scorer: Arc::new(Mutex::new(EmailScorer::new())),
         }
     }
 
-    /// Create an IMAP session
-    fn create_session(&self) -> Result<Session<TlsStream<TcpStream>>, ApiError> {
-        let tls = TlsConnector::builder()
-            .build()
-            .map_err(|e| ApiError::InternalError(format!("TLS error: {}", e)))?;
-
-        let client = imap::connect(("imap.gmail.com", 993), "imap.gmail.com", &tls)
-            .map_err(|e| ApiError::ConnectionError(format!("IMAP connection failed: {}", e)))?;
-
-        let mut session = client
-            .login(&self.email, &self.password)
-            .map_err(|e| {
-                ApiError::AuthenticationError(format!(
-                    "IMAP authentication failed: {}. Make sure you're using an App Password, not your regular password.
-                    Go to https://myaccount.google.com/apppasswords to create one.",
-                    e.0
-                ))
-            })?;
-
-        // Select INBOX
-        session
-            .select("INBOX")
-            .map_err(|e| ApiError::InternalError(format!("Failed to select INBOX: {}", e)))?;
-
-        Ok(session)
-    }
-
     pub async fn get_recent_emails(&self, limit: u32) -> Result<Vec<EmailSummary>, ApiError> {
-        let mut session = self.create_session()?;
+        // Check if we should use cache or fetch new emails
+        // Only use cache if we have very recent data (less than 30 seconds old)
+        let cache_max_age_seconds = 30; // Only trust cache for 30 seconds for recent emails
+
+        // Check if cache has recent enough data
+        if self
+            .cache
+            .has_recent_data(limit as usize, cache_max_age_seconds)
+            .await
+        {
+            let cached_emails = self.cache.get_recent(limit as usize).await;
+            if cached_emails.len() >= limit as usize {
+                tracing::debug!("Returning {} emails from cache", cached_emails.len());
+                return Ok(cached_emails);
+            }
+        }
+
+        tracing::info!("Cache miss or stale, fetching fresh emails from IMAP");
+
+        // Get a connection from the pool
+        let mut session = self.pool.get().await?;
 
         // Calculate date for recent emails (e.g., last 30 days)
         let days_back = 30;
@@ -98,8 +96,11 @@ impl ImapService {
         // Take only the requested limit after sorting
         emails.truncate(limit as usize);
 
-        // Logout
-        let _ = session.logout();
+        // Cache the fetched emails
+        self.cache.put_many(emails.clone()).await;
+
+        // Return connection to pool instead of logging out
+        self.pool.return_connection(session).await;
 
         Ok(emails)
     }
@@ -108,7 +109,7 @@ impl ImapService {
         &self,
         date: DateTime<Utc>,
     ) -> Result<Vec<EmailSummary>, ApiError> {
-        let mut session = self.create_session()?;
+        let mut session = self.pool.get().await?;
 
         // Format date for IMAP search
         let date_str = date.format("%d-%b-%Y").to_string();
@@ -128,13 +129,17 @@ impl ImapService {
         // Sort emails by date, most recent first
         emails.sort_by(|a, b| b.date.cmp(&a.date));
 
-        let _ = session.logout();
+        // Cache the fetched emails
+        self.cache.put_many(emails.clone()).await;
+
+        // Return connection to pool
+        self.pool.return_connection(session).await;
 
         Ok(emails)
     }
 
     pub async fn search_emails(&self, query: &str) -> Result<Vec<EmailSummary>, ApiError> {
-        let mut session = self.create_session()?;
+        let mut session = self.pool.get().await?;
 
         // Convert Gmail-style query to IMAP
         // Simple conversion - in production you'd want more sophisticated parsing
@@ -169,13 +174,17 @@ impl ImapService {
         // Return up to 50 most recent emails
         emails.truncate(50);
 
-        let _ = session.logout();
+        // Cache the fetched emails
+        self.cache.put_many(emails.clone()).await;
+
+        // Return connection to pool
+        self.pool.return_connection(session).await;
 
         Ok(emails)
     }
 
     pub async fn mark_as_read(&self, message_id: &str) -> Result<(), ApiError> {
-        let mut session = self.create_session()?;
+        let mut session = self.pool.get().await?;
 
         let uid: u32 = message_id
             .parse()
@@ -185,12 +194,12 @@ impl ImapService {
             .store(format!("{}", uid), "+FLAGS (\\Seen)")
             .map_err(|e| ApiError::InternalError(format!("Failed to mark as read: {}", e)))?;
 
-        let _ = session.logout();
+        self.pool.return_connection(session).await;
         Ok(())
     }
 
     pub async fn mark_as_unread(&self, message_id: &str) -> Result<(), ApiError> {
-        let mut session = self.create_session()?;
+        let mut session = self.pool.get().await?;
 
         let uid: u32 = message_id
             .parse()
@@ -200,12 +209,12 @@ impl ImapService {
             .store(format!("{}", uid), "-FLAGS (\\Seen)")
             .map_err(|e| ApiError::InternalError(format!("Failed to mark as unread: {}", e)))?;
 
-        let _ = session.logout();
+        self.pool.return_connection(session).await;
         Ok(())
     }
 
     pub async fn delete_email(&self, message_id: &str) -> Result<(), ApiError> {
-        let mut session = self.create_session()?;
+        let mut session = self.pool.get().await?;
 
         let uid: u32 = message_id
             .parse()
@@ -221,12 +230,12 @@ impl ImapService {
             .expunge()
             .map_err(|e| ApiError::InternalError(format!("Failed to expunge: {}", e)))?;
 
-        let _ = session.logout();
+        self.pool.return_connection(session).await;
         Ok(())
     }
 
     pub async fn mark_multiple_as_read(&self, count: u32) -> Result<usize, ApiError> {
-        let mut session = self.create_session()?;
+        let mut session = self.pool.get().await?;
 
         // Get the most recent unread messages
         let search_query = "UNSEEN";
@@ -246,12 +255,12 @@ impl ImapService {
             let _ = session.store(format!("{}", uid), "+FLAGS (\\Seen)");
         }
 
-        let _ = session.logout();
+        self.pool.return_connection(session).await;
         Ok(total_marked)
     }
 
     pub async fn delete_multiple(&self, ids: Vec<String>) -> Result<usize, ApiError> {
-        let mut session = self.create_session()?;
+        let mut session = self.pool.get().await?;
         let mut deleted = 0;
 
         for id in ids {
@@ -269,7 +278,7 @@ impl ImapService {
             .expunge()
             .map_err(|e| ApiError::InternalError(format!("Failed to expunge: {}", e)))?;
 
-        let _ = session.logout();
+        self.pool.return_connection(session).await;
         Ok(deleted)
     }
 
@@ -319,10 +328,19 @@ impl ImapService {
 
         // Parse date
         let date = if !date_str.is_empty() {
-            chrono::DateTime::parse_from_rfc2822(&date_str)
-                .map(|dt| dt.with_timezone(&Utc))
-                .unwrap_or_else(|_| Utc::now())
+            match chrono::DateTime::parse_from_rfc2822(&date_str) {
+                Ok(dt) => dt.with_timezone(&Utc),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to parse date '{}': {}, using current time",
+                        date_str,
+                        e
+                    );
+                    Utc::now()
+                }
+            }
         } else {
+            tracing::warn!("Email has no date header, using current time");
             Utc::now()
         };
 
@@ -386,14 +404,70 @@ impl ImapService {
         self.get_emails_by_date(today).await
     }
 
+    /// Get recent emails with forced refresh (bypasses cache)
+    /// Used for time-sensitive operations like MFA code retrieval
+    pub async fn get_recent_emails_fresh(&self, limit: u32) -> Result<Vec<EmailSummary>, ApiError> {
+        tracing::info!("Force fetching fresh emails from IMAP (bypassing cache)");
+
+        // Get a connection from the pool
+        let mut session = self.pool.get().await?;
+
+        // Calculate date for recent emails (last 7 days for MFA)
+        let days_back = 7;
+        let since_date = (Utc::now() - chrono::Duration::days(days_back))
+            .format("%d-%b-%Y")
+            .to_string();
+
+        // Search for messages from the last 7 days
+        let search_query = format!("SINCE {}", since_date);
+        let messages = session
+            .search(&search_query)
+            .map_err(|e| ApiError::InternalError(format!("Search failed: {}", e)))?;
+
+        // Convert to vector and reverse to get most recent first
+        let mut messages: Vec<_> = messages.into_iter().collect();
+        messages.sort_by(|a, b| b.cmp(a));
+
+        // Fetch requested number of emails
+        let fetch_count = limit.min(messages.len() as u32);
+        let messages: Vec<_> = messages.into_iter().take(fetch_count as usize).collect();
+
+        let mut emails = Vec::new();
+        for uid in messages {
+            if let Ok(email) = self.fetch_email(&mut session, uid).await {
+                emails.push(email);
+            }
+        }
+
+        // Sort emails by date, most recent first
+        emails.sort_by(|a, b| b.date.cmp(&a.date));
+
+        // Update cache with fresh data
+        self.cache.put_many(emails.clone()).await;
+
+        // Return connection to pool
+        self.pool.return_connection(session).await;
+
+        Ok(emails)
+    }
+
     pub async fn get_email_by_id(&self, id: &str) -> Result<EmailSummary, ApiError> {
-        let mut session = self.create_session()?;
+        // First check cache
+        if let Some(cached) = self.cache.get(id).await {
+            return Ok(cached);
+        }
+
+        let mut session = self.pool.get().await?;
         let uid: u32 = id
             .parse()
             .map_err(|_| ApiError::ValidationError("Invalid message ID".to_string()))?;
 
         let email = self.fetch_email(&mut session, uid).await?;
-        let _ = session.logout();
+
+        // Cache the single email
+        self.cache.put_many(vec![email.clone()]).await;
+
+        self.pool.return_connection(session).await;
 
         Ok(email)
     }

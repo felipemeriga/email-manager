@@ -10,6 +10,7 @@ fn test_email_summary_creation() {
         sender_email: "john@example.com".to_string(),
         date: Utc::now(),
         snippet: "This is a test...".to_string(),
+        body: None,
         is_read: false,
         labels: vec!["INBOX".to_string()],
         importance_score: 2,

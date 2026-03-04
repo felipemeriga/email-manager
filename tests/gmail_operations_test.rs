@@ -9,6 +9,7 @@ async fn test_email_parsing() {
         sender: "Test Sender".to_string(),
         sender_email: "sender@example.com".to_string(),
         snippet: "This is a test email snippet".to_string(),
+        body: Some("This is the full body of the test email".to_string()),
         date: chrono::Utc::now(),
         labels: vec!["INBOX".to_string()],
         is_read: false,

@@ -76,7 +76,9 @@ A complete Postman collection is available in [`postman_collection.json`](./post
 
 ### Email Operations
 
-- `GET /emails/recent?limit=50` - Get recent emails
+- `GET /emails/recent?limit=50&fresh=true` - Get recent emails
+  - `limit`: Number of emails to return (default: 10)
+  - `fresh`: Skip cache and fetch directly from IMAP (default: false)
 - `GET /emails/today?min_score=2` - Get today's emails
 - `GET /emails/by-date/{YYYY-MM-DD}?min_score=2` - Get emails by date
 - `POST /emails/search` - Search emails with query

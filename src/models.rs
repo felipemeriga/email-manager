@@ -10,7 +10,7 @@ pub struct EmailSummary {
     pub date: DateTime<Utc>,
     pub snippet: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub body: Option<String>,  // Full body text for MFA extraction
+    pub body: Option<String>, // Full body text for MFA extraction
     pub is_read: bool,
     pub labels: Vec<String>,
     pub importance_score: u8,

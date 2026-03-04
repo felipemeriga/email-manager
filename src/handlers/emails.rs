@@ -1,7 +1,7 @@
 use crate::errors::ApiError;
 use crate::models::{BulkDeleteRequest, SearchQuery};
 use crate::services::imap_service::ImapService;
-use crate::services::mfa_extractor::{MfaCode, MfaExtractor};
+use crate::services::mfa_extractor::MfaExtractor;
 use actix_web::{web, HttpResponse};
 use chrono::Utc;
 use serde::Deserialize;
@@ -19,16 +19,32 @@ pub async fn get_recent_emails(
         .and_then(|l| l.parse::<u32>().ok())
         .unwrap_or(10);
 
+    // Check if we should bypass cache
+    let force_fresh = query
+        .get("fresh")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
     let service = email_service.lock().await;
 
     // Add logging for debugging
-    tracing::info!("Fetching {} recent emails", limit);
+    tracing::info!("Fetching {} recent emails (fresh: {})", limit, force_fresh);
 
-    let emails = match service.get_recent_emails(limit).await {
-        Ok(emails) => emails,
-        Err(e) => {
-            tracing::error!("Failed to get recent emails: {:?}", e);
-            return Err(e);
+    let emails = if force_fresh {
+        match service.get_recent_emails_fresh(limit).await {
+            Ok(emails) => emails,
+            Err(e) => {
+                tracing::error!("Failed to get fresh emails: {:?}", e);
+                return Err(e);
+            }
+        }
+    } else {
+        match service.get_recent_emails(limit).await {
+            Ok(emails) => emails,
+            Err(e) => {
+                tracing::error!("Failed to get recent emails: {:?}", e);
+                return Err(e);
+            }
         }
     };
 
@@ -220,16 +236,34 @@ pub async fn get_mfa_codes(
     let search_limit = query.limit.clamp(20, 100);
     tracing::info!("Searching for MFA codes in {} recent emails", search_limit);
 
-    let emails = service.get_recent_emails(search_limit).await?;
+    // Use fresh fetch for MFA to ensure we get the latest codes
+    let emails = service.get_recent_emails_fresh(search_limit).await?;
 
     // Filter emails by time window (only look at emails from the last X minutes)
     let cutoff_time = Utc::now() - chrono::Duration::minutes(query.minutes as i64);
+
+    tracing::info!("Current time: {}, Cutoff time: {}", Utc::now(), cutoff_time);
+
     let recent_emails: Vec<_> = emails
         .into_iter()
-        .filter(|email| email.date >= cutoff_time)
+        .filter(|email| {
+            let include = email.date >= cutoff_time;
+            if !include {
+                tracing::debug!(
+                    "Excluding email from {} (subject: {:?}) - too old",
+                    email.date,
+                    email.subject
+                );
+            }
+            include
+        })
         .collect();
 
-    tracing::info!("Found {} emails within the last {} minutes", recent_emails.len(), query.minutes);
+    tracing::info!(
+        "Found {} emails within the last {} minutes",
+        recent_emails.len(),
+        query.minutes
+    );
 
     // Extract MFA codes from emails
     let mut all_codes = Vec::new();
@@ -238,13 +272,26 @@ pub async fn get_mfa_codes(
         // Use full body if available, otherwise fall back to snippet
         let text_to_search = email.body.as_deref().unwrap_or(&email.snippet);
 
-        let codes = MfaExtractor::extract_codes(
+        // First try to extract from body
+        let mut codes = MfaExtractor::extract_codes(
             &email.id,
             Some(&email.subject),
             Some(&email.sender_email),
             Some(text_to_search),
             email.date,
         );
+
+        // If no codes found in body, try extracting from subject
+        if codes.is_empty() && email.subject.chars().any(|c| c.is_ascii_digit()) {
+            tracing::debug!("No code in body, trying subject: {}", email.subject);
+            codes = MfaExtractor::extract_codes(
+                &email.id,
+                Some(&email.subject),
+                Some(&email.sender_email),
+                Some(&email.subject), // Use subject as body
+                email.date,
+            );
+        }
 
         // If we found codes and there's a service filter, apply it
         if let Some(ref filter_service) = query.service {
@@ -281,9 +328,13 @@ pub async fn get_latest_mfa_code(
 ) -> Result<HttpResponse, ApiError> {
     let service = email_service.lock().await;
 
-    // Get recent emails
+    // Get recent emails - use fresh fetch for real-time MFA codes
     let search_limit = 50; // Look at up to 50 emails to find the latest code
-    let emails = service.get_recent_emails(search_limit).await?;
+    tracing::info!(
+        "Searching for latest MFA code in {} recent emails",
+        search_limit
+    );
+    let emails = service.get_recent_emails_fresh(search_limit).await?;
 
     // Filter emails by time window
     let cutoff_time = Utc::now() - chrono::Duration::minutes(query.minutes as i64);
@@ -297,13 +348,26 @@ pub async fn get_latest_mfa_code(
         // Use full body if available, otherwise fall back to snippet
         let text_to_search = email.body.as_deref().unwrap_or(&email.snippet);
 
-        let codes = MfaExtractor::extract_codes(
+        // First try to extract from body
+        let mut codes = MfaExtractor::extract_codes(
             &email.id,
             Some(&email.subject),
             Some(&email.sender_email),
             Some(text_to_search),
             email.date,
         );
+
+        // If no codes found in body, try extracting from subject
+        if codes.is_empty() && email.subject.chars().any(|c| c.is_ascii_digit()) {
+            tracing::debug!("No code in body, trying subject: {}", email.subject);
+            codes = MfaExtractor::extract_codes(
+                &email.id,
+                Some(&email.subject),
+                Some(&email.sender_email),
+                Some(&email.subject), // Use subject as body
+                email.date,
+            );
+        }
 
         if !codes.is_empty() {
             // If there's a service filter, check if it matches
