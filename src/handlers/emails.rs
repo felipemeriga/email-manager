@@ -235,13 +235,14 @@ pub async fn get_mfa_codes(
     let mut all_codes = Vec::new();
 
     for email in recent_emails {
-        // Get full email content if we need to extract from body
-        // For now, we'll work with the snippet which often contains the code
+        // Use full body if available, otherwise fall back to snippet
+        let text_to_search = email.body.as_deref().unwrap_or(&email.snippet);
+
         let codes = MfaExtractor::extract_codes(
             &email.id,
             Some(&email.subject),
             Some(&email.sender_email),
-            Some(&email.snippet),
+            Some(text_to_search),
             email.date,
         );
 
@@ -293,11 +294,14 @@ pub async fn get_latest_mfa_code(
             break; // Stop if we've gone past the time window
         }
 
+        // Use full body if available, otherwise fall back to snippet
+        let text_to_search = email.body.as_deref().unwrap_or(&email.snippet);
+
         let codes = MfaExtractor::extract_codes(
             &email.id,
             Some(&email.subject),
             Some(&email.sender_email),
-            Some(&email.snippet),
+            Some(text_to_search),
             email.date,
         );
 

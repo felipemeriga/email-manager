@@ -32,31 +32,56 @@ impl MfaExtractor {
         let mut codes = Vec::new();
 
         if let Some(body_text) = body {
-            // Check if this looks like a verification email
-            let verification_keywords = ["code", "verification", "verify", "OTP", "2FA", "authentication", "passcode", "PIN"];
+            // Check if this looks like a verification email (supports multiple languages)
+            let verification_keywords = [
+                // English
+                "code", "verification", "verify", "OTP", "2FA", "authentication", "passcode", "PIN",
+                // Portuguese
+                "código", "codigo", "validação", "validacao", "autenticação", "autenticacao",
+                "verificação", "verificacao", "procedimento", "segurança", "seguranca",
+                // Spanish
+                "código", "verificación", "autenticación",
+                // Common patterns
+                "token", "confirm", "validate"
+            ];
             let has_verification_context = verification_keywords.iter()
                 .any(|keyword| body_text.to_lowercase().contains(&keyword.to_lowercase()));
 
-            if !has_verification_context {
+            // Also check if there's a pattern that looks like a code even without keywords
+            let has_code_pattern = body_text.contains(": ") && (
+                Regex::new(r"\b\d{4,8}\b").unwrap().is_match(body_text) ||
+                Regex::new(r"\b[A-Z0-9]{5,8}\b").unwrap().is_match(body_text)
+            );
+
+            if !has_verification_context && !has_code_pattern {
                 return codes;
             }
 
             let service = Self::detect_service(sender, subject);
 
-            // Try to extract 6-digit codes (most common)
-            if let Ok(re) = Regex::new(r"\b([0-9]{6})\b") {
-                if let Some(captures) = re.captures(body_text) {
-                    if let Some(code_match) = captures.get(1) {
-                        codes.push(MfaCode {
-                            code: code_match.as_str().to_string(),
-                            service: service.clone(),
-                            email_id: email_id.to_string(),
-                            email_subject: subject.map(String::from),
-                            email_sender: sender.map(String::from),
-                            email_date: date,
-                            code_type: CodeType::Numeric,
-                        });
-                        return codes;
+            // Try to extract codes with context (like "código: 123456" or "code is 123456")
+            let patterns = vec![
+                r"(?:código|code|token|pin)(?:\s+de\s+validação)?(?:\s+is)?:\s*(\d{4,8})",
+                r"(?:verification|validação|validation)\s+(?:code|código):\s*(\d{4,8})",
+                r"(?:use|utilize|usar)\s+(?:o\s+)?(?:código|code)(?:\s+de\s+validação)?:\s*(\d{4,8})",
+                r"\b([0-9]{6})\b", // Fallback to any 6-digit number
+            ];
+
+            for pattern in patterns {
+                if let Ok(re) = Regex::new(pattern) {
+                    if let Some(captures) = re.captures(body_text) {
+                        if let Some(code_match) = captures.get(1) {
+                            codes.push(MfaCode {
+                                code: code_match.as_str().to_string(),
+                                service: service.clone(),
+                                email_id: email_id.to_string(),
+                                email_subject: subject.map(String::from),
+                                email_sender: sender.map(String::from),
+                                email_date: date,
+                                code_type: CodeType::Numeric,
+                            });
+                            return codes;
+                        }
                     }
                 }
             }
@@ -103,9 +128,22 @@ impl MfaExtractor {
         codes
     }
 
-    fn detect_service(sender: Option<&str>, _subject: Option<&str>) -> Option<String> {
+    fn detect_service(sender: Option<&str>, subject: Option<&str>) -> Option<String> {
         if let Some(sender_email) = sender {
             let sender_lower = sender_email.to_lowercase();
+
+            // Check for government services (Brazil)
+            if sender_lower.contains(".gov.br") || sender_lower.contains("celepar") {
+                return Some(String::from("Brazilian Gov"));
+            }
+
+            // Check subject for service hints
+            if let Some(subj) = subject {
+                let subj_lower = subj.to_lowercase();
+                if subj_lower.contains("central de seguranca") || subj_lower.contains("segurança") {
+                    return Some(String::from("Security Center"));
+                }
+            }
 
             // Match common service domains
             if sender_lower.contains("google") || sender_lower.contains("gmail") {

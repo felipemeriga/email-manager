@@ -330,6 +330,13 @@ impl ImapService {
         let body_text = parsed.get_body().unwrap_or_else(|_| String::new());
         let snippet = body_text.chars().take(200).collect::<String>();
 
+        // Keep full body for MFA extraction (limit to 5000 chars to avoid huge emails)
+        let body = if !body_text.is_empty() {
+            Some(body_text.chars().take(5000).collect::<String>())
+        } else {
+            None
+        };
+
         // Parse sender email
         let sender_email = if from.contains('<') && from.contains('>') {
             from.split('<')
@@ -366,6 +373,7 @@ impl ImapService {
             sender_email,
             subject,
             snippet,
+            body,
             date,
             is_read,
             labels,
