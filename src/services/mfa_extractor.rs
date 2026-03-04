@@ -90,21 +90,28 @@ impl MfaExtractor {
             };
 
             // Check if this looks like an order/shipping/receipt email (should be excluded)
-            let exclusion_keywords = ["order", "invoice", "receipt", "shipping", "package", "tracking"];
-            let is_excluded = exclusion_keywords.iter()
-                .any(|keyword| body_lower.contains(keyword) ||
-                    subject.map(|s| s.to_lowercase().contains(keyword)).unwrap_or(false));
+            let exclusion_keywords = [
+                "order", "invoice", "receipt", "shipping", "package", "tracking",
+            ];
+            let is_excluded = exclusion_keywords.iter().any(|keyword| {
+                body_lower.contains(keyword)
+                    || subject
+                        .map(|s| s.to_lowercase().contains(keyword))
+                        .unwrap_or(false)
+            });
 
             // Also check if there's a pattern that looks like a code even without keywords
             // But not if it's an order number (preceded by #)
-            let has_code_pattern = !body_text.contains("#") &&
-                (body_text.contains(": ") || body_text.contains("is "))
+            let has_code_pattern = !body_text.contains("#")
+                && (body_text.contains(": ") || body_text.contains("is "))
                 && (Regex::new(r"\b\d{4,8}\b").unwrap().is_match(body_text)
                     || Regex::new(r"\b[A-Z0-9]{5,8}\b")
                         .unwrap()
                         .is_match(body_text));
 
-            if is_excluded || (!has_verification_context && !subject_has_context && !has_code_pattern) {
+            if is_excluded
+                || (!has_verification_context && !subject_has_context && !has_code_pattern)
+            {
                 tracing::debug!(
                     "Skipping email - no verification context found. Subject: {:?}, Body preview: {:?}",
                     subject,
@@ -151,7 +158,8 @@ impl MfaExtractor {
                         // Handle hyphenated codes with two capture groups
                         let extracted_code = if captures.get(2).is_some() {
                             // Combine two parts for hyphenated codes
-                            format!("{}{}",
+                            format!(
+                                "{}{}",
                                 captures.get(1).map(|m| m.as_str()).unwrap_or(""),
                                 captures.get(2).map(|m| m.as_str()).unwrap_or("")
                             )
