@@ -36,7 +36,13 @@
 					"name": "Get Recent Emails",
 					"request": {
 						"method": "GET",
-						"header": [],
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}",
+								"type": "text"
+							}
+						],
 						"url": {
 							"raw": "{{base_url}}/emails/recent?limit=50",
 							"host": [
@@ -124,6 +130,11 @@
 							{
 								"key": "Content-Type",
 								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}",
+								"type": "text"
 							}
 						],
 						"body": {
@@ -268,8 +279,104 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "MFA Code Extraction",
+			"item": [
+				{
+					"name": "Get MFA Codes",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/mfa/codes?minutes=5&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"mfa",
+								"codes"
+							],
+							"query": [
+								{
+									"key": "minutes",
+									"value": "5",
+									"description": "Time window in minutes to search for codes (default: 5)"
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Maximum number of codes to return (default: 20)"
+								},
+								{
+									"key": "service",
+									"value": "Google",
+									"description": "Optional: Filter by service name (e.g., Google, GitHub, Microsoft)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Extract MFA/2FA verification codes from recent emails. The API searches through your recent emails looking for verification codes from services like Google, GitHub, Microsoft, AWS, etc.\n\n**How it works:**\n1. Scans emails from the last X minutes (configurable)\n2. Looks for verification keywords (code, verification, OTP, 2FA, etc.)\n3. Extracts numeric codes (4-6 digits) or alphanumeric codes\n4. Identifies the service from the sender's email address\n5. Returns structured data with the code and metadata\n\n**Supported Services:**\n- Google/Gmail\n- Microsoft/Outlook\n- GitHub\n- AWS\n- Facebook/Meta\n- Twitter/X\n- LinkedIn\n- Apple\n- PayPal\n- Discord\n- Slack\n- And many more...\n\n**Response includes:**\n- The verification code\n- Service name (auto-detected)\n- Email metadata (sender, subject, date)\n- Code type (numeric/alphanumeric)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Latest MFA Code",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{api_token}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/mfa/latest?minutes=5",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"mfa",
+								"latest"
+							],
+							"query": [
+								{
+									"key": "minutes",
+									"value": "5",
+									"description": "Time window in minutes to search for codes (default: 5)"
+								},
+								{
+									"key": "service",
+									"value": "GitHub",
+									"description": "Optional: Filter by specific service",
+									"disabled": true
+								}
+							]
+						},
+						"description": "Get the most recent MFA/2FA code from your emails. Returns only the latest verification code found.\n\n**Use cases:**\n- Automated login scripts\n- Quick retrieval of the latest code\n- Service-specific code retrieval\n\n**Example Response:**\n```json\n{\n  \"code\": \"123456\",\n  \"service\": \"Google\",\n  \"email_id\": \"msg-12345\",\n  \"email_subject\": \"Sign in to Google\",\n  \"email_sender\": \"noreply@google.com\",\n  \"email_date\": \"2024-03-15T10:30:00Z\",\n  \"code_type\": \"numeric\"\n}\n```"
+					},
+					"response": []
+				}
+			]
 		}
 	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{api_token}}",
+				"type": "string"
+			}
+		]
+	},
 	"event": [
 		{
 			"listen": "prerequest",
@@ -302,6 +409,12 @@
 			"value": "18d8f7a2b3c4e5f6",
 			"type": "string",
 			"description": "Example email ID for testing"
+		},
+		{
+			"key": "api_token",
+			"value": "your-api-token-here",
+			"type": "string",
+			"description": "API Bearer token for authentication"
 		}
 	]
 }
