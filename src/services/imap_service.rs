@@ -54,16 +54,36 @@ impl ImapService {
     pub async fn get_recent_emails(&self, limit: u32) -> Result<Vec<EmailSummary>, ApiError> {
         let mut session = self.create_session()?;
 
-        // Search for recent messages
-        let search_query = "ALL";
+        // Calculate date for recent emails (e.g., last 30 days)
+        let days_back = 30;
+        let since_date = (Utc::now() - chrono::Duration::days(days_back))
+            .format("%d-%b-%Y")
+            .to_string();
+
+        // Search for messages from the last 30 days
+        let search_query = format!("SINCE {}", since_date);
         let messages = session
-            .search(search_query)
+            .search(&search_query)
             .map_err(|e| ApiError::InternalError(format!("Search failed: {}", e)))?;
 
-        // Get the most recent messages (already sorted by uid)
+        // If we have too few messages, expand the search
+        let messages = if messages.len() < limit as usize {
+            // Try getting more messages with a broader search
+            let search_query = "ALL";
+            session
+                .search(search_query)
+                .map_err(|e| ApiError::InternalError(format!("Search failed: {}", e)))?
+        } else {
+            messages
+        };
+
+        // Convert to vector and reverse to get most recent first (higher UIDs are more recent)
         let mut messages: Vec<_> = messages.into_iter().collect();
-        messages.reverse();
-        let messages: Vec<_> = messages.into_iter().take(limit as usize).collect();
+        messages.sort_by(|a, b| b.cmp(a)); // Sort UIDs in descending order
+
+        // We need to fetch more than requested to ensure we get enough after sorting by date
+        let fetch_count = (limit * 2).min(messages.len() as u32);
+        let messages: Vec<_> = messages.into_iter().take(fetch_count as usize).collect();
 
         let mut emails = Vec::new();
         for uid in messages {
@@ -74,6 +94,9 @@ impl ImapService {
 
         // Sort emails by date, most recent first
         emails.sort_by(|a, b| b.date.cmp(&a.date));
+
+        // Take only the requested limit after sorting
+        emails.truncate(limit as usize);
 
         // Logout
         let _ = session.logout();
@@ -127,8 +150,14 @@ impl ImapService {
             .search(&imap_query)
             .map_err(|e| ApiError::InternalError(format!("Search failed: {}", e)))?;
 
+        // Sort UIDs in descending order (most recent first)
+        let mut messages: Vec<_> = messages.into_iter().collect();
+        messages.sort_by(|a, b| b.cmp(a));
+
+        // Fetch more messages to ensure we have enough after date sorting
+        let fetch_limit = 100.min(messages.len());
         let mut emails = Vec::new();
-        for uid in messages.into_iter().take(50) {
+        for uid in messages.into_iter().take(fetch_limit) {
             if let Ok(email) = self.fetch_email(&mut session, uid).await {
                 emails.push(email);
             }
@@ -136,6 +165,9 @@ impl ImapService {
 
         // Sort emails by date, most recent first
         emails.sort_by(|a, b| b.date.cmp(&a.date));
+
+        // Return up to 50 most recent emails
+        emails.truncate(50);
 
         let _ = session.logout();
 
@@ -202,9 +234,9 @@ impl ImapService {
             .search(search_query)
             .map_err(|e| ApiError::InternalError(format!("Search failed: {}", e)))?;
 
-        // Take only the requested count
+        // Sort UIDs in descending order (most recent first)
         let mut messages_vec: Vec<_> = messages.into_iter().collect();
-        messages_vec.reverse(); // Most recent first
+        messages_vec.sort_by(|a, b| b.cmp(a));
         let messages_to_mark: Vec<_> = messages_vec.into_iter().take(count as usize).collect();
 
         let total_marked = messages_to_mark.len();
